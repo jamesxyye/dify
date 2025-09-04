@@ -757,6 +757,18 @@ const translation = {
     supportedFormats: 'Supports PNG, JPG, JPEG, WEBP and GIF',
   },
   you: 'You',
+  ragSdk: 'RAG SDK',
+  serverConfiguration: 'Server Configuration',
+  fileUpload: 'File Upload',
+  uploadFiles: 'Upload Files',
+  dragAndDropFiles: 'Drag and drop files here, or click to select',
+  supportedFileTypes: 'Supported file types: PDF, TXT, DOC, DOCX, MD',
+  maxFileSize: 'Max file size: 10MB',
+  uploadProgress: 'Upload Progress',
+  uploadSuccess: 'Upload successful',
+  uploadError: 'Upload failed',
+  serverUrl: 'Server URL',
+  serverUrlPlaceholder: 'Enter RAG SDK server URL',
 }
 
 export default translation

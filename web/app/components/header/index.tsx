@@ -1,5 +1,5 @@
 'use client'
-import { useCallback } from 'react'
+import React, { useCallback } from 'react'
 import Link from 'next/link'
 import AccountDropdown from './account-dropdown'
 import AppNav from './app-nav'
@@ -8,6 +8,7 @@ import EnvNav from './env-nav'
 import PluginsNav from './plugins-nav'
 import ExploreNav from './explore-nav'
 import ToolsNav from './tools-nav'
+import VecMLNav from './vecml-nav'
 import { WorkspaceProvider } from '@/context/workspace-context'
 import { useAppContext } from '@/context/app-context'
 import DifyLogo from '@/app/components/base/logo/dify-logo'
@@ -27,7 +28,12 @@ const navClassName = `
 `
 
 const Header = () => {
-  const { isCurrentWorkspaceEditor, isCurrentWorkspaceDatasetOperator } = useAppContext()
+  const {
+    isCurrentWorkspaceManager,
+    isCurrentWorkspaceOwner,
+    isCurrentWorkspaceEditor,
+    isCurrentWorkspaceDatasetOperator,
+  } = useAppContext()
   const media = useBreakpoints()
   const isMobile = media === MediaType.mobile
   const { enableBilling, plan } = useProviderContext()
@@ -73,6 +79,7 @@ const Header = () => {
           {!isCurrentWorkspaceDatasetOperator && <AppNav />}
           {(isCurrentWorkspaceEditor || isCurrentWorkspaceDatasetOperator) && <DatasetNav />}
           {!isCurrentWorkspaceDatasetOperator && <ToolsNav className={navClassName} />}
+          {!isCurrentWorkspaceDatasetOperator && <VecMLNav className={navClassName} />}
         </div>
       </div>
     )
@@ -101,6 +108,7 @@ const Header = () => {
         {!isCurrentWorkspaceDatasetOperator && <AppNav />}
         {(isCurrentWorkspaceEditor || isCurrentWorkspaceDatasetOperator) && <DatasetNav />}
         {!isCurrentWorkspaceDatasetOperator && <ToolsNav className={navClassName} />}
+        {!isCurrentWorkspaceDatasetOperator && <VecMLNav className={navClassName} />}
       </div>
       <div className='flex min-w-0 flex-[1] items-center justify-end pl-2 pr-3 min-[1280px]:pl-3'>
         <EnvNav />
