@@ -42,6 +42,12 @@ from models.provider import (
     ProviderType,
     TenantPreferredModelProvider,
 )
+from services.enterprise.plugin_manager_service import (
+    CheckCredentialPolicyComplianceRequest,
+    PluginCredentialType,
+    PluginManagerService,
+)
+from services.feature_service import FeatureService
 
 logger = logging.getLogger(__name__)
 
@@ -129,16 +135,38 @@ class ProviderConfiguration(BaseModel):
             return copy_credentials
         else:
             credentials = None
+            current_credential_id = None
+
             if self.custom_configuration.models:
                 for model_configuration in self.custom_configuration.models:
                     if model_configuration.model_type == model_type and model_configuration.model == model:
                         credentials = model_configuration.credentials
+                        current_credential_id = model_configuration.current_credential_id
                         break
 
             if not credentials and self.custom_configuration.provider:
                 credentials = self.custom_configuration.provider.credentials
+                current_credential_id = self.custom_configuration.provider.current_credential_id
+
+            if current_credential_id:
+                self._check_credential_policy_compliance(current_credential_id)
 
             return credentials
+
+    def _check_credential_policy_compliance(self, credential_id: str) -> None:
+        """
+        Check credential policy compliance for the given credential ID.
+
+        :param credential_id: The credential ID to check
+        """
+        if FeatureService.get_system_features().plugin_manager.enabled and credential_id:
+            PluginManagerService.check_credential_policy_compliance(
+                CheckCredentialPolicyComplianceRequest(
+                    dify_credential_id=credential_id,
+                    provider=self.provider.provider,
+                    credential_type=PluginCredentialType.MODEL,
+                )
+            )
 
     def get_system_configuration_status(self) -> Optional[SystemConfigurationStatus]:
         """
@@ -237,6 +265,8 @@ class ProviderConfiguration(BaseModel):
                 except Exception:
                     pass
 
+        self._check_credential_policy_compliance(credential_id)
+
         return self.obfuscated_credentials(
             credentials=credentials,
             credential_form_schemas=self.provider.provider_credential_schema.credential_form_schemas
@@ -266,6 +296,9 @@ class ProviderConfiguration(BaseModel):
         :param credential_id: if provided, return the specified credential
         :return:
         """
+        if FeatureService.get_system_features().plugin_manager.enabled:
+            if self.custom_configuration.provider and self.custom_configuration.provider.current_credential_id:
+                self._check_credential_policy_compliance(self.custom_configuration.provider.current_credential_id)
 
         if credential_id:
             return self._get_specific_provider_credential(credential_id)
@@ -740,6 +773,9 @@ class ProviderConfiguration(BaseModel):
 
         current_credential_id = credential_record.id
         current_credential_name = credential_record.credential_name
+
+        self._check_credential_policy_compliance(current_credential_id)
+
         credentials = self.obfuscated_credentials(
             credentials=credentials,
             credential_form_schemas=self.provider.model_credential_schema.credential_form_schemas
@@ -794,6 +830,9 @@ class ProviderConfiguration(BaseModel):
             ):
                 current_credential_id = model_configuration.current_credential_id
                 current_credential_name = model_configuration.current_credential_name
+                if current_credential_id:
+                    self._check_credential_policy_compliance(current_credential_id)
+
                 credentials = self.obfuscated_credentials(
                     credentials=model_configuration.credentials,
                     credential_form_schemas=self.provider.model_credential_schema.credential_form_schemas
