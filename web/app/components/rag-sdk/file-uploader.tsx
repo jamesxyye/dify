@@ -107,6 +107,12 @@ const FileUploader: React.FC = () => {
     try {
       for (const item of fileList) {
         await ragSdkApiService.removeFile(item.name)
+        // mark this item as pending so it can be indexed again
+        setFileList((prev: FileItemType[]) => prev.map((it: FileItemType) => (
+          it.name === item.name
+            ? { ...it, status: 'pending', progress: 0, errorMessage: undefined }
+            : it
+        )))
       }
       toast({ type: 'success', message: 'Removed from index' })
     } catch (e) {

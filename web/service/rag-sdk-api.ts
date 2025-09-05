@@ -12,52 +12,7 @@ class RagSdkApiService {
     this.serverUrl = this.getServerUrl() || DEFAULT_SERVER_URL
   }
 
-  /**
-   * Upload a file to the RAG SDK API
-   * @param file The file to upload
-   * @param onProgress Progress callback
-   * @returns Promise with the upload result
-   */
-  async uploadFile(file: File, onProgress?: (progress: number) => void): Promise<any> {
-    return new Promise((resolve, reject) => {
-      const formData = new FormData()
-      formData.append('file', file)
-
-      const xhr = new XMLHttpRequest()
-      xhr.open('POST', `${this.serverUrl}/upload`, true)
-
-      // Track upload progress
-      if (onProgress) {
-        xhr.upload.onprogress = (event) => {
-          if (event.lengthComputable) {
-            const progress = Math.round((event.loaded / event.total) * 100)
-            onProgress(progress)
-          }
-        }
-      }
-
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const response = JSON.parse(xhr.responseText)
-            resolve(response)
-          } catch (error) {
-            resolve({ success: true })
-          }
-        } else {
-          reject(new Error(`Upload failed with status ${xhr.status}`))
-        }
-      }
-
-      xhr.onerror = () => {
-        reject(new Error('Network error occurred during upload'))
-      }
-
-      xhr.send(formData)
-    })
-  }
-
-  // New: Index a file into vector DB via RAG SDK
+  // Index a file into vector DB via RAG SDK
   async indexFile(file: File, onProgress?: (progress: number) => void): Promise<any> {
     return new Promise((resolve, reject) => {
       const formData = new FormData()
