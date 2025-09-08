@@ -87,9 +87,7 @@ const FileUploader: React.FC = () => {
 
         setFileList((prev: FileItemType[]) => prev.map((it: FileItemType, idx: number) => idx === i ? { ...it, status: 'uploading' } : it))
         try {
-          await ragSdkApiService.indexFile(fileItem.file, (progress: number) => {
-            setFileList((prev: FileItemType[]) => prev.map((it: FileItemType, idx: number) => idx === i ? { ...it, progress } : it))
-          })
+          await ragSdkApiService.indexFile(fileItem.name)
           setFileList((prev: FileItemType[]) => prev.map((it: FileItemType, idx: number) => idx === i ? { ...it, status: 'success', progress: 100 } : it))
         } catch (error) {
           setFileList((prev: FileItemType[]) => prev.map((it: FileItemType, idx: number) => idx === i ? { ...it, status: 'error', errorMessage: error instanceof Error ? error.message : 'Index failed' } : it))

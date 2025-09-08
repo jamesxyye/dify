@@ -1,5 +1,5 @@
 'use client'
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RiSettings4Line } from '@remixicon/react'
 import PageHeader from '@/app/components/header'
@@ -10,6 +10,18 @@ const RagSdkPage: React.FC = () => {
   const { t } = useTranslation()
   const [serverUrl, setServerUrl] = useState<string>(ragSdkApiService.getServerUrl() || 'http://localhost:40004')
 
+  // Developer settings: server cwd, doc base, and optional path prefix
+  const [serverCwd, setServerCwd] = useState<string>('')
+  const [docBase, setDocBase] = useState<string>('')
+  const [pathPrefix, setPathPrefix] = useState<string>('')
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    setServerCwd(localStorage.getItem('rag_sdk_server_cwd') || '')
+    setDocBase(localStorage.getItem('rag_sdk_doc_base') || '')
+    setPathPrefix(localStorage.getItem('rag_sdk_path_prefix') || '')
+  }, [])
+
   const handleServerUrlChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setServerUrl(e.target.value)
   }, [])
@@ -17,6 +29,30 @@ const RagSdkPage: React.FC = () => {
   const saveServerUrl = useCallback(() => {
     ragSdkApiService.setServerUrl(serverUrl)
   }, [serverUrl])
+
+  const savePathSettings = useCallback(() => {
+    if (typeof window === 'undefined') return
+    // Persist server_cwd & doc_base if provided
+    if (serverCwd) localStorage.setItem('rag_sdk_server_cwd', serverCwd)
+    else localStorage.removeItem('rag_sdk_server_cwd')
+
+    if (docBase) localStorage.setItem('rag_sdk_doc_base', docBase)
+    else localStorage.removeItem('rag_sdk_doc_base')
+
+    // Persist prefix as a fallback (will be ignored if both cwd & base exist)
+    if (pathPrefix) localStorage.setItem('rag_sdk_path_prefix', pathPrefix)
+    else localStorage.removeItem('rag_sdk_path_prefix')
+  }, [serverCwd, docBase, pathPrefix])
+
+  const clearPathSettings = useCallback(() => {
+    if (typeof window === 'undefined') return
+    localStorage.removeItem('rag_sdk_server_cwd')
+    localStorage.removeItem('rag_sdk_doc_base')
+    localStorage.removeItem('rag_sdk_path_prefix')
+    setServerCwd('')
+    setDocBase('')
+    setPathPrefix('')
+  }, [])
 
   return (
     <div className="flex flex-col h-full">
@@ -43,6 +79,69 @@ const RagSdkPage: React.FC = () => {
               >
                 {t('common.save')}
               </button>
+            </div>
+          </div>
+
+          {/* Developer Settings */}
+          <div className="mb-8 border rounded-lg p-4">
+            <div className="mb-4">
+              <div className="flex items-center">
+                <RiSettings4Line className="text-lg mr-2" />
+                <h2 className="text-lg font-medium">开发者设置（file_path 规则）</h2>
+              </div>
+              <p className="mt-1 text-sm text-gray-600">
+                优先使用“Server CWD + Doc Base”来计算相对路径；若未设置，则回退到“Path Prefix + 文件名”。
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center">
+                <label className="w-40 text-sm text-gray-700">Server CWD</label>
+                <input
+                  type="text"
+                  value={serverCwd}
+                  onChange={(e) => setServerCwd(e.target.value)}
+                  className="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  placeholder="/Users/you/Projects/dify/dev"
+                />
+              </div>
+
+              <div className="flex items-center">
+                <label className="w-40 text-sm text-gray-700">Doc Base</label>
+                <input
+                  type="text"
+                  value={docBase}
+                  onChange={(e) => setDocBase(e.target.value)}
+                  className="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  placeholder="/Users/you/Downloads"
+                />
+              </div>
+
+              <div className="flex items-center">
+                <label className="w-40 text-sm text-gray-700">Path Prefix（可选）</label>
+                <input
+                  type="text"
+                  value={pathPrefix}
+                  onChange={(e) => setPathPrefix(e.target.value)}
+                  className="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  placeholder="../../../Downloads/"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-2">
+                <button
+                  onClick={clearPathSettings}
+                  className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                >
+                  清除
+                </button>
+                <button
+                  onClick={savePathSettings}
+                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                >
+                  保存
+                </button>
+              </div>
             </div>
           </div>
 

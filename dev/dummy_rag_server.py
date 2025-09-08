@@ -5,14 +5,30 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import time
+import os
+from datetime import datetime
 
 PORT = 40004
+LOG_FILE = os.path.join(os.path.dirname(__file__), 'server.log')
 
 
 def set_cors(handler: BaseHTTPRequestHandler):
     handler.send_header('Access-Control-Allow-Origin', '*')
     handler.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
     handler.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+
+
+def log_json_body(path: str, raw_body: bytes):
+    try:
+        text = (raw_body or b'').decode('utf-8', errors='replace').strip()
+    except Exception:
+        text = ''
+    try:
+        with open(LOG_FILE, 'a', encoding='utf-8') as f:
+            f.write(f"{datetime.utcnow().isoformat()}Z {path} {text}\n")
+    except Exception:
+        # Fail silently if logging fails
+        pass
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -32,6 +48,10 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get('Content-Length', 0) or 0)
         raw_body = self.rfile.read(length) if length > 0 else b''
         content_type = (self.headers.get('Content-Type') or '').lower()
+
+        # Log JSON request bodies for /index and /remove
+        if self.path in ('/index', '/remove') and 'application/json' in content_type:
+            log_json_body(self.path, raw_body)
 
         if self.path == '/index':
             # Accept either JSON with {"file_path": "..."} or multipart uploads
