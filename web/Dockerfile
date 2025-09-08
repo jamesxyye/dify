@@ -1,44 +1,68 @@
-# base image
+# ---------- base ----------
 FROM node:22-alpine3.21 AS base
 LABEL maintainer="takatost@gmail.com"
 
-# if you located in China, you can use aliyun mirror to speed up
-# RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
-
-# if you located in China, you can use taobao registry to speed up
-# RUN npm config set registry https://registry.npmmirror.com
-
-RUN apk add --no-cache tzdata
+# Tools & certs
+RUN apk add --no-cache tzdata ca-certificates curl bash && update-ca-certificates
 RUN corepack enable
+
+# Env for pnpm + DNS behavior
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-ENV NEXT_PUBLIC_BASE_PATH=
+ENV NODE_OPTIONS="--dns-result-order=ipv4first"
+# More resilient pnpm networking on flaky links
+ENV PNPM_FETCH_RETRIES=6 \
+    PNPM_FETCH_RETRY_FACTOR=2 \
+    PNPM_FETCH_RETRY_MINTIMEOUT=30000 \
+    PNPM_NETWORK_CONCURRENCY=1 \
+    PNPM_FETCH_TIMEOUT=180000 \
+    npm_config_strict_ssl=true
 
+# Optional: pass proxies at build time (uncomment if needed)
+# ARG HTTP_PROXY
+# ARG HTTPS_PROXY
+# ENV HTTP_PROXY=$HTTP_PROXY
+# ENV HTTPS_PROXY=$HTTPS_PROXY
 
-# install packages
+# ---------- packages (network stage) ----------
 FROM base AS packages
-
 WORKDIR /app/web
 
-COPY package.json .
-COPY pnpm-lock.yaml .
+# Use a mainland mirror for registry & tarballs
+# (You can move this to a project .npmrc if you prefer)
+RUN printf "registry=https://registry.npmmirror.com/\n@*/*:registry=https://registry.npmmirror.com/\n" > /root/.npmrc
 
-# Use packageManager from package.json
+# Only files that affect dependency graph
+COPY package.json pnpm-lock.yaml ./
+
+# Use packageManager from package.json via corepack (pins pnpm)
 RUN corepack install
 
-RUN pnpm install --frozen-lockfile
+# Prefetch deps into pnpm store with BuildKit cache
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm fetch
 
-# build resources
+# ---------- builder (no network install) ----------
 FROM base AS builder
 WORKDIR /app/web
-COPY --from=packages /app/web/ .
+
+# Mirror config + lock files from packages stage
+COPY --from=packages /root/.npmrc /root/.npmrc
+COPY --from=packages /app/web/ ./
+
+# Bring in the full source now
+# (Context must be repo root when building; see build cmd below)
 COPY . .
 
-ENV NODE_OPTIONS="--max-old-space-size=4096"
+# Offline, deterministic install from fetched store
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile --offline
+
+# Extra memory for Next build if needed
+ENV NODE_OPTIONS="--dns-result-order=ipv4first --max-old-space-size=4096"
 RUN pnpm build:docker
 
-
-# production stage
+# ---------- production ----------
 FROM base AS production
 
 ENV NODE_ENV=production
@@ -52,25 +76,26 @@ ENV PORT=3000
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PM2_INSTANCES=2
 
-# set timezone
+# set timezone (adjust if you want)
 ENV TZ=UTC
-RUN ln -s /usr/share/zoneinfo/${TZ} /etc/localtime \
-    && echo ${TZ} > /etc/timezone
-
+RUN ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime && echo ${TZ} > /etc/timezone
 
 WORKDIR /app/web
+
+# Copy runtime outputs
 COPY --from=builder /app/web/public ./public
 COPY --from=builder /app/web/.next/standalone ./
 COPY --from=builder /app/web/.next/static ./.next/static
 
+# Entry script (path is relative to build context: repo root)
 COPY docker/entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
 
-
-# global runtime packages
+# Global runtime tooling
 RUN pnpm add -g pm2 \
-    && mkdir /.pm2 \
-    && chown -R 1001:0 /.pm2 /app/web \
-    && chmod -R g=u /.pm2 /app/web
+ && mkdir /.pm2 \
+ && chown -R 1001:0 /.pm2 /app/web \
+ && chmod -R g=u /.pm2 /app/web
 
 ARG COMMIT_SHA
 ENV COMMIT_SHA=${COMMIT_SHA}
