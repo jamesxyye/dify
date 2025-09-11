@@ -6,6 +6,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import time
 import os
+import random
 from datetime import datetime
 
 PORT = 40004
@@ -64,10 +65,15 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 # multipart/form-data or other content
                 file_path = 'uploaded_via_multipart'
+
+            # Random delay between 1s and 60s to simulate indexing time
+            delay_sec = random.uniform(1.0, 60.0)
+            time.sleep(delay_sec)
+
             resp = {
                 'file_path': file_path,
                 'message': 'File indexed successfully',
-                'processing_time_ms': int(300 + (time.time() * 1000) % 500),
+                'processing_time_ms': int(delay_sec * 1000),
                 'status': 'success',
             }
             return self._send_json(200, resp)

@@ -1,6 +1,5 @@
 'use client'
 import React from 'react'
-import { useTranslation } from 'react-i18next'
 import Link from 'next/link'
 import { useSelectedLayoutSegment } from 'next/navigation'
 import {
@@ -13,21 +12,12 @@ type VecMLNavProps = {
 }
 
 const VecMLNav = ({ className }: VecMLNavProps) => {
-  const { t } = useTranslation()
   const selectedSegment = useSelectedLayoutSegment()
   const activated = selectedSegment === 'rag-sdk'
+  const cls = `${className ?? ''} ${activated ? 'bg-components-main-nav-nav-button-bg-active text-components-main-nav-nav-button-text-active font-semibold shadow-md hover:bg-components-main-nav-nav-button-bg-active-hover' : 'text-components-main-nav-nav-button-text hover:bg-components-main-nav-nav-button-bg-hover'}`
 
   return (
-    <Link
-      href="/rag-sdk"
-      className={`
-        ${className}
-        ${activated
-          ? 'bg-components-main-nav-nav-button-bg-active text-components-main-nav-nav-button-text-active font-semibold shadow-md hover:bg-components-main-nav-nav-button-bg-active-hover'
-          : 'text-components-main-nav-nav-button-text hover:bg-components-main-nav-nav-button-bg-hover'
-        }
-      `}
-    >
+    <Link href="/rag-sdk" className={cls}>
       {activated ? (
         <RiDatabase2Fill className="h-4 w-4" />
       ) : (

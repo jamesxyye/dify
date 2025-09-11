@@ -60,7 +60,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 
 # Extra memory for Next build if needed
 ENV NODE_OPTIONS="--dns-result-order=ipv4first --max-old-space-size=4096"
-RUN pnpm build:docker
+RUN --mount=type=cache,target=/app/web/.next/cache pnpm build:docker
 
 # ---------- production ----------
 FROM base AS production

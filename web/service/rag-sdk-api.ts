@@ -16,7 +16,8 @@ function normSegments(parts: string[], allowAboveRoot = false) {
     if (p === '..') {
       if (res.length && res[res.length - 1] !== '..') res.pop()
       else if (allowAboveRoot) res.push('..')
-    } else res.push(p)
+    }
+    else { res.push(p) }
   }
   return res
 }
@@ -100,13 +101,13 @@ class RagSdkApiService {
       body: JSON.stringify({ file_path: this.transformFilePath(fileName) }),
     })
 
-    if (!res.ok) {
+    if (!res.ok)
       throw new Error(`Index failed with status ${res.status}`)
-    }
 
     try {
       return await res.json()
-    } catch {
+    }
+    catch {
       return { success: true }
     }
   }
@@ -119,13 +120,13 @@ class RagSdkApiService {
       body: JSON.stringify({ file_path: this.transformFilePath(fileName) }),
     })
 
-    if (!res.ok) {
+    if (!res.ok)
       throw new Error(`Remove failed with status ${res.status}`)
-    }
 
     try {
       return await res.json()
-    } catch {
+    }
+    catch {
       return { success: true }
     }
   }
@@ -135,9 +136,9 @@ class RagSdkApiService {
    * @returns The server URL
    */
   getServerUrl(): string {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined')
       return localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL
-    }
+
     return DEFAULT_SERVER_URL
   }
 
@@ -147,9 +148,80 @@ class RagSdkApiService {
    */
   setServerUrl(url: string): void {
     this.serverUrl = url
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined')
       localStorage.setItem(SERVER_URL_KEY, url)
+  }
+
+  // New: Index by raw file_path (no transform), similar to Python aindex_file(file_path)
+  async indexFilePath(file_path: string): Promise<any> {
+    const res = await fetch(`${this.serverUrl}/index`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_path }),
+    })
+
+    if (!res.ok)
+      throw new Error(`Index failed with status ${res.status}`)
+
+    try {
+      return await res.json()
     }
+    catch {
+      return { success: true }
+    }
+  }
+
+  // Optional alias to mirror Python naming
+  async aindexFile(file_path: string): Promise<any> {
+    return this.indexFilePath(file_path)
+  }
+
+  // New: Remove by raw file_path (no transform)
+  async removeFilePath(file_path: string): Promise<any> {
+    const res = await fetch(`${this.serverUrl}/remove`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_path }),
+    })
+
+    if (!res.ok)
+      throw new Error(`Remove failed with status ${res.status}`)
+
+    try {
+      return await res.json()
+    }
+    catch {
+      return { success: true }
+    }
+  }
+
+  // New: Concurrency-limited batch index for file names
+  async indexFiles(
+    fileNames: string[],
+    opts: { concurrency?: number } = {},
+  ): Promise<{ results: { file: string; ok: boolean; data?: any; error?: string }[] }> {
+    const concurrency = Math.max(1, opts.concurrency ?? 4)
+    const results: { file: string; ok: boolean; data?: any; error?: string }[] = new Array(fileNames.length)
+    let i = 0
+
+    const worker = async () => {
+      while (true) {
+        const idx = i++
+        if (idx >= fileNames.length) break
+        const f = fileNames[idx]
+        try {
+          const data = await this.indexFile(f)
+          results[idx] = { file: f, ok: true, data }
+        }
+        catch (e: any) {
+          results[idx] = { file: f, ok: false, error: e?.message || String(e) }
+        }
+      }
+    }
+
+    const workers = new Array(Math.min(concurrency, fileNames.length)).fill(0).map(() => worker())
+    await Promise.all(workers)
+    return { results }
   }
 }
 

@@ -29,8 +29,6 @@ const navClassName = `
 
 const Header = () => {
   const {
-    isCurrentWorkspaceManager,
-    isCurrentWorkspaceOwner,
     isCurrentWorkspaceEditor,
     isCurrentWorkspaceDatasetOperator,
   } = useAppContext()

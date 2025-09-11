@@ -49,10 +49,15 @@ const server = http.createServer(async (req, res) => {
       let payload = {}
       try { payload = JSON.parse(raw || '{}') } catch (e) {}
       const filePath = payload.file_path || payload.path || 'unknown'
+
+      // Random delay between 1s (1000ms) and 60s (60000ms)
+      const delayMs = Math.floor(Math.random() * (60000 - 1000 + 1)) + 1000
+      await new Promise((resolve) => setTimeout(resolve, delayMs))
+
       const response = {
         file_path: filePath,
         message: 'File indexed successfully',
-        processing_time_ms: Math.floor(Math.random() * 500) + 300,
+        processing_time_ms: delayMs,
         status: 'success',
       }
       return sendJSON(res, 200, response)
