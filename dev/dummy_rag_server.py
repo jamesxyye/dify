@@ -66,8 +66,8 @@ class Handler(BaseHTTPRequestHandler):
                 # multipart/form-data or other content
                 file_path = 'uploaded_via_multipart'
 
-            # Random delay between 1s and 60s to simulate indexing time
-            delay_sec = random.uniform(1.0, 60.0)
+            # Fixed delay for predictable testing
+            delay_sec = 0.123
             time.sleep(delay_sec)
 
             resp = {

@@ -17,6 +17,7 @@ type FileItemType = {
   progress: number
   status: 'pending' | 'uploading' | 'success' | 'error'
   errorMessage?: string
+  processingTimeMs?: number
 }
 
 const FileUploader: React.FC = () => {
@@ -98,9 +99,14 @@ const FileUploader: React.FC = () => {
 
         setFileList((prev: FileItemType[]) => prev.map((it: FileItemType, idx: number) => idx === i ? { ...it, status: 'uploading' } : it))
         try {
-          await ragSdkApiService.indexFile(fileItem.name)
+          const data = await ragSdkApiService.indexFile(fileItem.name)
+          const processingTimeMs = typeof data?.processing_time_ms === 'number' ? data.processing_time_ms : undefined
           successCount += 1
-          setFileList((prev: FileItemType[]) => prev.map((it: FileItemType, idx: number) => idx === i ? { ...it, status: 'success', progress: 100 } : it))
+          setFileList((prev: FileItemType[]) => prev.map((it: FileItemType, idx: number) => (
+            idx === i
+              ? { ...it, status: 'success', progress: 100, processingTimeMs }
+              : it
+          )))
         }
         catch (error) {
           setFileList((prev: FileItemType[]) => prev.map((it: FileItemType, idx: number) => idx === i ? { ...it, status: 'error', errorMessage: error instanceof Error ? error.message : 'Index failed' } : it))
@@ -195,6 +201,9 @@ const FileUploader: React.FC = () => {
                     <p className="truncate text-sm font-medium text-gray-900">{fileItem.name}</p>
                     <p className="text-sm text-gray-500">{formatFileSize(fileItem.size)}</p>
                     <p className="text-sm text-gray-500">Status: {fileItem.status}</p>
+                    {fileItem.status === 'success' && typeof fileItem.processingTimeMs === 'number' && (
+                      <p className="text-sm text-gray-500">Indexed in {fileItem.processingTimeMs} ms</p>
+                    )}
                     {fileItem.status === 'uploading' && (
                       <div className="mt-2">
                         <div className="h-2 w-full rounded-full bg-gray-200">
