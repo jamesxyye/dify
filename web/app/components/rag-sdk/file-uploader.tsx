@@ -1,6 +1,6 @@
 'use client'
 /** @jsxImportSource react */
-import React, { useCallback, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useContextSelector } from 'use-context-selector'
 import { RiDeleteBin5Line, RiUploadCloud2Line } from '@remixicon/react'
@@ -20,7 +20,13 @@ type FileItemType = {
   processingTimeMs?: number
 }
 
-const FileUploader: React.FC = () => {
+type Props = {
+  pipelineName?: string
+  onIndexed?: () => void
+  onRemoved?: () => void
+}
+
+const FileUploader: React.FC<Props> = ({ pipelineName, onIndexed, onRemoved }) => {
   const { t } = useTranslation()
   const toast = useContextSelector(ToastContext, (v: any) => v.toast)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -32,6 +38,15 @@ const FileUploader: React.FC = () => {
   const [lastIndexDurationMs, setLastIndexDurationMs] = useState<number | null>(null)
   const [lastIndexedCount, setLastIndexedCount] = useState<number | null>(null)
   const [lastIndexedTotal, setLastIndexedTotal] = useState<number | null>(null)
+
+  // Reset selection and last summary when switching pipelines
+  useEffect(() => {
+    setFileList([])
+    setUploading(false)
+    setLastIndexDurationMs(null)
+    setLastIndexedCount(null)
+    setLastIndexedTotal(null)
+  }, [pipelineName])
 
   const handleDrag = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -83,6 +98,10 @@ const FileUploader: React.FC = () => {
   // Index selected files into vector DB using RAG SDK
   const indexFiles = useCallback(async () => {
     if (uploading) return
+    if (!pipelineName) {
+      toast({ type: 'error', message: 'Please select a pipeline first' })
+      return
+    }
     setUploading(true)
     // reset last summary before a new run
     setLastIndexDurationMs(null)
@@ -99,7 +118,7 @@ const FileUploader: React.FC = () => {
 
         setFileList((prev: FileItemType[]) => prev.map((it: FileItemType, idx: number) => idx === i ? { ...it, status: 'uploading' } : it))
         try {
-          const data = await ragSdkApiService.indexFile(fileItem.name)
+          const data = await ragSdkApiService.indexFileInPipeline(pipelineName, fileItem.name)
           const processingTimeMs = typeof data?.processing_time_ms === 'number' ? data.processing_time_ms : undefined
           successCount += 1
           setFileList((prev: FileItemType[]) => prev.map((it: FileItemType, idx: number) => (
@@ -107,6 +126,8 @@ const FileUploader: React.FC = () => {
               ? { ...it, status: 'success', progress: 100, processingTimeMs }
               : it
           )))
+          // refresh files list immediately after each successful index
+          onIndexed && onIndexed()
         }
         catch (error) {
           setFileList((prev: FileItemType[]) => prev.map((it: FileItemType, idx: number) => idx === i ? { ...it, status: 'error', errorMessage: error instanceof Error ? error.message : 'Index failed' } : it))
@@ -117,18 +138,23 @@ const FileUploader: React.FC = () => {
       setLastIndexDurationMs(durationMs)
       setLastIndexedCount(successCount)
       toast({ type: 'success', message: 'Index completed' })
+      onIndexed && onIndexed()
     }
     finally {
       setUploading(false)
     }
-  }, [fileList, uploading, toast])
+  }, [fileList, uploading, toast, pipelineName, onIndexed])
 
   // Remove selected files from vector DB using RAG SDK
   const removeIndexedFiles = useCallback(async () => {
     if (fileList.length === 0) return
+    if (!pipelineName) {
+      toast({ type: 'error', message: 'Please select a pipeline first' })
+      return
+    }
     try {
       for (const item of fileList) {
-        await ragSdkApiService.removeFile(item.name)
+        await ragSdkApiService.removeFileInPipeline(pipelineName, item.name)
         // mark this item as pending so it can be indexed again
         setFileList((prev: FileItemType[]) => prev.map((it: FileItemType) => (
           it.name === item.name
@@ -137,11 +163,12 @@ const FileUploader: React.FC = () => {
         )))
       }
       toast({ type: 'success', message: 'Removed from index' })
+      onRemoved && onRemoved()
     }
     catch (e) {
       toast({ type: 'error', message: e instanceof Error ? e.message : 'Remove failed' })
     }
-  }, [fileList, toast])
+  }, [fileList, toast, pipelineName, onRemoved])
 
   return (
     <div className="mx-auto w-full max-w-2xl p-6">
@@ -173,6 +200,7 @@ const FileUploader: React.FC = () => {
           variant="primary"
           onClick={handleFileSelect}
           className="mb-4"
+          disabled={!pipelineName}
         >
           {t('common.fileUpload.selectFiles')}
         </Button>
@@ -242,7 +270,7 @@ const FileUploader: React.FC = () => {
             <Button
               variant="secondary"
               onClick={removeIndexedFiles}
-              disabled={uploading || fileList.length === 0}
+              disabled={uploading || fileList.length === 0 || !pipelineName}
             >
               {/* remove from vector db */}
               Remove
@@ -250,7 +278,7 @@ const FileUploader: React.FC = () => {
             <Button
               variant="primary"
               onClick={indexFiles}
-              disabled={uploading || fileList.length === 0}
+              disabled={uploading || fileList.length === 0 || !pipelineName}
             >
               {/* index to vector db */}
               {uploading ? 'Indexing…' : 'Index'}

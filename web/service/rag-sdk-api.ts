@@ -1,5 +1,5 @@
 const SERVER_URL_KEY = 'rag_sdk_server_url'
-const DEFAULT_SERVER_URL = 'http://localhost:40004'
+const DEFAULT_SERVER_URL = 'http://localhost:40005'
 // Optional client-side config to shape file_path for legacy RAG servers
 // If both are set, we compute a relative path from server CWD to (doc base + fileName)
 // localStorage keys (set in browser console):
@@ -150,6 +150,73 @@ class RagSdkApiService {
     this.serverUrl = url
     if (typeof window !== 'undefined')
       localStorage.setItem(SERVER_URL_KEY, url)
+  }
+
+  // Pipelines API
+  async createPipeline(pipeline_name: string, config?: any): Promise<any> {
+    const body = config !== undefined ? { pipeline_name, config } : { pipeline_name }
+    const res = await fetch(`${this.serverUrl}/create_pipeline`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok)
+      throw new Error(`Create pipeline failed with status ${res.status}`)
+    return res.json().catch(() => ({ success: true }))
+  }
+
+  async indexFileInPipeline(pipeline_name: string, fileName: string): Promise<any> {
+    const res = await fetch(`${this.serverUrl}/index`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pipeline_name, file_path: this.transformFilePath(fileName) }),
+    })
+    if (!res.ok)
+      throw new Error(`Index failed with status ${res.status}`)
+    return res.json().catch(() => ({ success: true }))
+  }
+
+  async removeFileInPipeline(pipeline_name: string, fileName: string): Promise<any> {
+    const res = await fetch(`${this.serverUrl}/remove_file`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pipeline_name, file_path: this.transformFilePath(fileName) }),
+    })
+    if (!res.ok)
+      throw new Error(`Remove failed with status ${res.status}`)
+    return res.json().catch(() => ({ success: true }))
+  }
+
+  async removePipeline(pipeline_name: string): Promise<any> {
+    const res = await fetch(`${this.serverUrl}/remove_pipeline`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pipeline_name }),
+    })
+    if (!res.ok)
+      throw new Error(`Remove pipeline failed with status ${res.status}`)
+    return res.json().catch(() => ({ success: true }))
+  }
+
+  async listFiles(pipeline_name: string): Promise<{ files: string[] }> {
+    const res = await fetch(`${this.serverUrl}/list_files?pipeline_name=${encodeURIComponent(pipeline_name)}`)
+    if (!res.ok)
+      throw new Error(`List files failed with status ${res.status}`)
+    const data = await res.json()
+    return { files: Array.isArray(data?.files) ? data.files : [] }
+  }
+
+  async listPipelines(): Promise<{ pipelines: string[] }> {
+    const res = await fetch(`${this.serverUrl}/list_pipelines`)
+    if (!res.ok)
+      throw new Error(`List pipelines failed with status ${res.status}`)
+    const data = await res.json()
+    const names = Array.isArray(data?.pipelines)
+      ? data.pipelines
+        .map((p: any) => (typeof p === 'string' ? p : p?.name))
+        .filter((n: any) => typeof n === 'string' && n.length > 0)
+      : []
+    return { pipelines: names }
   }
 
   // New: Index by raw file_path (no transform), similar to Python aindex_file(file_path)
