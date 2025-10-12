@@ -1,5 +1,8 @@
 const SERVER_URL_KEY = 'rag_sdk_server_url'
-const DEFAULT_SERVER_URL = 'http://localhost:40005'
+// Default to your running server port
+const DEFAULT_SERVER_URL = 'http://localhost:40004'
+// Optional env fallback, e.g., set NEXT_PUBLIC_RAG_SDK_URL in docker/web env
+const ENV_SERVER_URL = process.env.NEXT_PUBLIC_RAG_SDK_URL
 // Optional client-side config to shape file_path for legacy RAG servers
 // If both are set, we compute a relative path from server CWD to (doc base + fileName)
 // localStorage keys (set in browser console):
@@ -137,9 +140,9 @@ class RagSdkApiService {
    */
   getServerUrl(): string {
     if (typeof window !== 'undefined')
-      return localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL
+      return localStorage.getItem(SERVER_URL_KEY) || ENV_SERVER_URL || DEFAULT_SERVER_URL
 
-    return DEFAULT_SERVER_URL
+    return ENV_SERVER_URL || DEFAULT_SERVER_URL
   }
 
   /**
@@ -199,24 +202,87 @@ class RagSdkApiService {
   }
 
   async listFiles(pipeline_name: string): Promise<{ files: string[] }> {
-    const res = await fetch(`${this.serverUrl}/list_files?pipeline_name=${encodeURIComponent(pipeline_name)}`)
+    const res = await fetch(`${this.serverUrl}/list_files?pipeline_name=${encodeURIComponent(pipeline_name)}`, {
+      headers: { Accept: 'application/json' },
+    })
     if (!res.ok)
       throw new Error(`List files failed with status ${res.status}`)
-    const data = await res.json()
-    return { files: Array.isArray(data?.files) ? data.files : [] }
+    const ct = res.headers.get('content-type') || ''
+    try {
+      if (ct.includes('application/json')) {
+        const data = await res.json()
+        const files = Array.isArray(data?.files)
+          ? data.files
+            .map((f: any) => typeof f === 'string' ? f : (f?.file_path ?? f?.file_name ?? ''))
+            .filter((s: any) => typeof s === 'string' && s.length > 0)
+          : []
+        return { files }
+      }
+      // Fallback: handle text responses
+      const text = await res.text()
+      try {
+        const maybeJson = JSON.parse(text)
+        const files = Array.isArray(maybeJson?.files)
+          ? maybeJson.files
+            .map((f: any) => typeof f === 'string' ? f : (f?.file_path ?? f?.file_name ?? ''))
+            .filter((s: any) => typeof s === 'string' && s.length > 0)
+          : []
+        return { files }
+      }
+      catch {
+        // Try newline/CSV-style list
+        const files = text
+          .split(/\r?\n|,/) // split by newline or comma
+          .map(s => s.trim())
+          .filter(Boolean)
+        return { files }
+      }
+    }
+    catch (e) {
+      console.error('listFiles parse error', e)
+      return { files: [] }
+    }
   }
 
   async listPipelines(): Promise<{ pipelines: string[] }> {
-    const res = await fetch(`${this.serverUrl}/list_pipelines`)
+    const res = await fetch(`${this.serverUrl}/list_pipelines`, {
+      headers: { Accept: 'application/json' },
+    })
     if (!res.ok)
       throw new Error(`List pipelines failed with status ${res.status}`)
-    const data = await res.json()
-    const names = Array.isArray(data?.pipelines)
-      ? data.pipelines
-        .map((p: any) => (typeof p === 'string' ? p : p?.name))
-        .filter((n: any) => typeof n === 'string' && n.length > 0)
-      : []
-    return { pipelines: names }
+    const ct = res.headers.get('content-type') || ''
+    try {
+      if (ct.includes('application/json')) {
+        const data = await res.json()
+        const names = Array.isArray(data?.pipelines)
+          ? data.pipelines
+            .map((p: any) => (typeof p === 'string' ? p : p?.name))
+            .filter((n: any) => typeof n === 'string' && n.length > 0)
+          : []
+        return { pipelines: names }
+      }
+      const text = await res.text()
+      try {
+        const maybeJson = JSON.parse(text)
+        const names = Array.isArray(maybeJson?.pipelines)
+          ? maybeJson.pipelines
+            .map((p: any) => (typeof p === 'string' ? p : p?.name))
+            .filter((n: any) => typeof n === 'string' && n.length > 0)
+          : []
+        return { pipelines: names }
+      }
+      catch {
+        const pipelines = text
+          .split(/\r?\n|,/) // newline or comma separated list
+          .map(s => s.trim())
+          .filter(Boolean)
+        return { pipelines }
+      }
+    }
+    catch (e) {
+      console.error('listPipelines parse error', e)
+      return { pipelines: [] }
+    }
   }
 
   // New: Index by raw file_path (no transform), similar to Python aindex_file(file_path)

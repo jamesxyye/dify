@@ -15,7 +15,7 @@ type FileItemType = {
   type: string
   file: File
   progress: number
-  status: 'pending' | 'uploading' | 'success' | 'error'
+  status: 'pending' | 'uploading' | 'success' | 'error' | 'removed'
   errorMessage?: string
   processingTimeMs?: number
 }
@@ -155,10 +155,10 @@ const FileUploader: React.FC<Props> = ({ pipelineName, onIndexed, onRemoved }) =
     try {
       for (const item of fileList) {
         await ragSdkApiService.removeFileInPipeline(pipelineName, item.name)
-        // mark this item as pending so it can be indexed again
+        // mark this item as removed for clear feedback
         setFileList((prev: FileItemType[]) => prev.map((it: FileItemType) => (
           it.name === item.name
-            ? { ...it, status: 'pending', progress: 0, errorMessage: undefined }
+            ? { ...it, status: 'removed', progress: 0, errorMessage: undefined }
             : it
         )))
       }

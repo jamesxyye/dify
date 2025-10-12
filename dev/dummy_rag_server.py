@@ -11,7 +11,7 @@ from urllib.parse import urlparse, parse_qs
 PORT = 40005
 LOG_FILE = os.path.join(os.path.dirname(__file__), 'server.log')
 
-# In-memory pipelines store: { name: {"config": {...}, "files": set([...]) } }
+# In-memory pipelines store: { name: {"config": {...}, "files": set([...string file paths...]) } }
 PIPELINES: dict[str, dict] = {}
 
 
@@ -96,14 +96,14 @@ class Handler(BaseHTTPRequestHandler):
                 PIPELINES[pipeline_name] = {'config': {}, 'files': set()}
 
             # Fixed delay for predictable testing
-            delay_sec = 0.123
+            delay_sec = 0.567
             time.sleep(delay_sec)
             PIPELINES[pipeline_name]['files'].add(str(file_path))
             resp = {
                 'pipeline_name': pipeline_name,
                 'file_path': file_path,
                 'message': 'File indexed successfully',
-                'processing_time_ms': int(delay_sec * 1000),
+                'processing_time_ms': 567,
                 'status': 'success',
             }
             return self._send_json(200, resp)
@@ -123,6 +123,7 @@ class Handler(BaseHTTPRequestHandler):
                 'pipeline_name': pipeline_name,
                 'removed': file_path,
                 'message': 'File removed successfully',
+                'processing_time_ms': 3,
                 'status': 'success',
             }
             return self._send_json(200, resp)
@@ -144,11 +145,21 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send_json(400, {'status': 'error', 'message': 'pipeline_name is required'})
             entry = PIPELINES.get(pipeline_name)
             files = sorted(list(entry['files'])) if entry else []
+            # Match actual server shape: array of objects with file_path/file_name/etc.
+            file_items = [
+                {
+                    'authors': [],
+                    'file_name': str(f).split('/')[-1],
+                    'file_path': str(f),
+                    'title': '',
+                }
+                for f in files
+            ]
             return self._send_json(200, {
                 'status': 'success',
                 'pipeline_name': pipeline_name,
-                'file_count': len(files),
-                'files': files,
+                'file_count': len(file_items),
+                'files': file_items,
             })
 
         # Back-compat legacy routes (optional): /remove
@@ -178,11 +189,20 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send_json(400, {'status': 'error', 'message': 'pipeline_name is required'})
             entry = PIPELINES.get(pipeline_name)
             files = sorted(list(entry['files'])) if entry else []
+            file_items = [
+                {
+                    'authors': [],
+                    'file_name': str(f).split('/')[-1],
+                    'file_path': str(f),
+                    'title': '',
+                }
+                for f in files
+            ]
             return self._send_json(200, {
                 'status': 'success',
                 'pipeline_name': pipeline_name,
-                'file_count': len(files),
-                'files': files,
+                'file_count': len(file_items),
+                'files': file_items,
             })
 
         # 7. List Pipelines
@@ -192,7 +212,7 @@ class Handler(BaseHTTPRequestHandler):
                 pipelines.append({
                     'name': name,
                     'config': entry.get('config', {}),
-                    'n_gpu': 1,
+                    'n_gpu': 4,
                     'path': f'rag_data/pipelines/{name}',
                 })
             return self._send_json(200, {
