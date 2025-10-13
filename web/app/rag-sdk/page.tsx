@@ -59,6 +59,8 @@ const RagSdkPage: React.FC = () => {
   const [selectedPipeline, setSelectedPipeline] = useState<string>('')
   const [newPipelineName, setNewPipelineName] = useState<string>('')
   const [filesInPipeline, setFilesInPipeline] = useState<string[]>([])
+  // Indexing progress for bottom progress bar
+  const [indexProgress, setIndexProgress] = useState<{ completed: number; total: number; percent: number; running: boolean } | null>(null)
 
   const refreshPipelines = useCallback(async () => {
     try {
@@ -312,10 +314,36 @@ const RagSdkPage: React.FC = () => {
           {/* File Upload Section */}
           <div className="rounded-lg border p-4">
             <h2 className="mb-4 text-lg font-medium">{t('common.fileUpload')}</h2>
-            <FileUploader pipelineName={selectedPipeline} onIndexed={() => refreshFiles()} onRemoved={() => refreshFiles()} />
+            <FileUploader
+              pipelineName={selectedPipeline}
+              onIndexed={() => refreshFiles()}
+              onRemoved={() => refreshFiles()}
+              onProgress={p => setIndexProgress(p)}
+            />
           </div>
         </div>
       </div>
+      {/* Bottom Progress Bar */}
+      {indexProgress && indexProgress.total > 0 && (
+        <div className="sticky bottom-0 w-full border-t bg-white">
+          <div className="mx-auto max-w-3xl p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-700">
+                Indexing {indexProgress.completed}/{indexProgress.total} ({indexProgress.percent}%)
+              </span>
+              <span className="text-xs text-gray-500">
+                {indexProgress.running ? 'Running' : 'Completed'}
+              </span>
+            </div>
+            <div className="mt-2 h-2 w-full rounded-full bg-gray-200">
+              <div
+                className="h-2 rounded-full bg-primary-600 transition-all"
+                style={{ width: `${indexProgress.percent}%` }}
+              ></div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

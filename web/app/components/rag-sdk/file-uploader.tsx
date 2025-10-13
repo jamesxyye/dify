@@ -24,9 +24,10 @@ type Props = {
   pipelineName?: string
   onIndexed?: () => void
   onRemoved?: () => void
+  onProgress?: (p: { completed: number; total: number; percent: number; running: boolean }) => void
 }
 
-const FileUploader: React.FC<Props> = ({ pipelineName, onIndexed, onRemoved }) => {
+const FileUploader: React.FC<Props> = ({ pipelineName, onIndexed, onRemoved, onProgress }) => {
   const { t } = useTranslation()
   const toast = useContextSelector(ToastContext, (v: any) => v.toast)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -111,6 +112,9 @@ const FileUploader: React.FC<Props> = ({ pipelineName, onIndexed, onRemoved }) =
     const toIndex = fileList.filter((f: FileItemType) => f.status !== 'success')
     setLastIndexedTotal(toIndex.length)
     let successCount = 0
+    let processedCount = 0
+    if (toIndex.length > 0)
+      onProgress && onProgress({ completed: 0, total: toIndex.length, percent: 0, running: true })
     try {
       for (let i = 0; i < fileList.length; i++) {
         const fileItem = fileList[i]
@@ -132,6 +136,11 @@ const FileUploader: React.FC<Props> = ({ pipelineName, onIndexed, onRemoved }) =
         catch (error) {
           setFileList((prev: FileItemType[]) => prev.map((it: FileItemType, idx: number) => idx === i ? { ...it, status: 'error', errorMessage: error instanceof Error ? error.message : 'Index failed' } : it))
         }
+        // update overall progress after attempting this file
+        processedCount += 1
+        const total = toIndex.length
+        const percent = total > 0 ? Math.round((processedCount / total) * 100) : 100
+        onProgress && onProgress({ completed: processedCount, total, percent, running: true })
       }
       const end = (typeof performance !== 'undefined' ? performance.now() : Date.now())
       const durationMs = end - start
@@ -141,6 +150,9 @@ const FileUploader: React.FC<Props> = ({ pipelineName, onIndexed, onRemoved }) =
       onIndexed && onIndexed()
     }
     finally {
+      const total = toIndex.length
+      if (total > 0)
+        onProgress && onProgress({ completed: processedCount, total, percent: 100, running: false })
       setUploading(false)
     }
   }, [fileList, uploading, toast, pipelineName, onIndexed])
